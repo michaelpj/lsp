@@ -1,6 +1,23 @@
 {-# LANGUAGE DuplicateRecordFields      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE DerivingStrategies            #-}
+{-# LANGUAGE DerivingVia            #-}
+{-# LANGUAGE DeriveGeneric            #-}
+{-# LANGUAGE DeriveAnyClass            #-}
+
+{-# LANGUAGE GADTs            #-}
+{-# LANGUAGE FlexibleContexts            #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE MultiParamTypeClasses            #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Language.LSP.Types.Completion where
 
 import           Control.Applicative
@@ -15,6 +32,14 @@ import           Language.LSP.Types.Progress
 import           Language.LSP.Types.TextDocument
 import           Language.LSP.Types.Utils
 import           Language.LSP.Types.WorkspaceEdit
+
+import GHC.Generics (Generic)
+import qualified Generics.SOP as SOP
+import           Data.Kind (Type)
+import           Data.Proxy 
+import Data.Foldable (asum)
+import qualified Data.Aeson                    as A
+import qualified Data.Aeson.Types                    as A
 
 data CompletionItemKind = CiText
                         | CiMethod
@@ -197,16 +222,58 @@ instance A.FromJSON InsertTextFormat where
   parseJSON (A.Number  2) = pure Snippet
   parseJSON _             = mempty
 
+class (as ~ '[a]) => IsSingletonOf (a :: k) (as :: [k])
+instance (as ~ '[a]) => IsSingletonOf (a :: k) (as :: [k])
+
+type IsSingletonsOf (xs :: [k] ) (xss :: [[k]]) = SOP.AllZip IsSingletonOf xs xss
+
+type IsSumType (a :: Type) (xs :: [Type]) = (SOP.Generic a, IsSingletonsOf xs (SOP.Code a))
+
+sumTypeTo :: (SOP.Generic a, IsSingletonsOf xs (SOP.Code a)) => a -> SOP.NS SOP.I xs
+sumTypeTo = go . SOP.unSOP . SOP.from
+  where
+    go :: IsSingletonsOf xs xss => SOP.NS (SOP.NP SOP.I) xss -> SOP.NS SOP.I xs
+    go (SOP.Z (x SOP.:* SOP.Nil)) = SOP.Z x
+    go (SOP.S xss) = SOP.S $ go xss
+
+sumTypeFrom :: (SOP.Generic a, IsSingletonsOf xs (SOP.Code a)) => SOP.NS SOP.I xs -> a
+sumTypeFrom = SOP.to . SOP.SOP . go 
+  where
+    go :: IsSingletonsOf xs xss => SOP.NS SOP.I xs -> SOP.NS (SOP.NP SOP.I) xss
+    go (SOP.Z x) = SOP.Z (x SOP.:* SOP.Nil)
+    go (SOP.S xss) = SOP.S $ go xss
+
+sumToJSON :: forall xs . (SOP.All A.ToJSON xs) => SOP.NS SOP.I xs -> A.Value
+sumToJSON (SOP.Z (SOP.I x)) = A.toJSON x
+sumToJSON (SOP.S xss) = sumToJSON xss
+
+sumFromJSON :: forall xs . (SOP.All A.FromJSON xs) => A.Value -> A.Parser (SOP.NS SOP.I xs)
+sumFromJSON v =
+  let
+    -- A product of all the possible parsers
+    parsers :: SOP.NP A.Parser xs
+    parsers = SOP.hcpure (Proxy @A.FromJSON) (A.parseJSON v)
+    -- A list of parsers for sums, one for each alternative
+    sumParsers :: [SOP.NS A.Parser xs]
+    sumParsers = SOP.apInjs_NP parsers
+    -- A parser for the sum that tries each one in sequence
+    sumParser :: A.Parser (SOP.NS SOP.I xs)
+    sumParser = asum $ fmap SOP.hsequence sumParsers
+  in sumParser
+
+newtype UntaggedUnion a xs = UntaggedUnion a 
+
+instance (IsSumType a xs, SOP.All A.ToJSON xs) => A.ToJSON (UntaggedUnion a xs) where
+  toJSON (UntaggedUnion a) = sumToJSON @xs $ sumTypeTo a
+
+instance (IsSumType a xs, SOP.All A.FromJSON xs) => A.FromJSON (UntaggedUnion a xs) where
+  parseJSON v = UntaggedUnion . sumTypeFrom <$> sumFromJSON @xs v
+
 data CompletionDoc = CompletionDocString Text
                    | CompletionDocMarkup MarkupContent
-  deriving (Show, Read, Eq)
-
-instance A.ToJSON CompletionDoc where
-  toJSON (CompletionDocString x) = A.toJSON x
-  toJSON (CompletionDocMarkup x) = A.toJSON x
-
-instance A.FromJSON CompletionDoc where
-  parseJSON x = CompletionDocString <$> A.parseJSON x <|> CompletionDocMarkup <$> A.parseJSON x
+  deriving stock (Show, Read, Eq, Generic)
+  deriving anyclass SOP.Generic
+  deriving (A.ToJSON, A.FromJSON) via (UntaggedUnion CompletionDoc '[Text, MarkupContent])
 
 data CompletionItem =
   CompletionItem
