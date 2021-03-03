@@ -209,3 +209,8 @@ data CodeAction =
   }
   deriving (Read, Show, Eq)
 deriveJSON lspOptions ''CodeAction
+
+data CodeActionResult = CodeActionResultAction CodeAction | CodeActionResultCommand Command
+  deriving (Read, Show, Eq)
+
+deriveJSON lspOptionsUntagged ''CodeActionResult

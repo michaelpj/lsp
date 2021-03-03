@@ -70,6 +70,15 @@ deriveJSON lspOptions ''LocationLink
 
 -- ---------------------------------------------------------------------
 
+data LocationResult = 
+  LocationResultLocation Location 
+  | LocationResultList (List Location) 
+  | LocationResultLink LocationLink
+  deriving (Read, Show, Eq)
+
+deriveJSON lspOptionsUntagged ''LocationResult
+
+
 -- | A helper function for creating ranges.
 -- prop> mkRange l c l' c' = Range (Position l c) (Position l' c')
 mkRange :: Int -> Int -> Int -> Int -> Range

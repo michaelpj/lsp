@@ -166,20 +166,20 @@ type family ResponseResult (m :: Method f Request) :: Type where
   -- Sync/Document state
   ResponseResult TextDocumentWillSaveWaitUntil = List TextEdit
   -- Completion
-  ResponseResult TextDocumentCompletion        = List CompletionItem |? CompletionList
+  ResponseResult TextDocumentCompletion        = CompletionResult
   ResponseResult CompletionItemResolve         = CompletionItem
   -- Language Queries
   ResponseResult TextDocumentHover             = Maybe Hover
   ResponseResult TextDocumentSignatureHelp     = SignatureHelp
-  ResponseResult TextDocumentDeclaration       = Location |? List Location |? List LocationLink
-  ResponseResult TextDocumentDefinition        = Location |? List Location |? List LocationLink
-  ResponseResult TextDocumentTypeDefinition    = Location |? List Location |? List LocationLink
-  ResponseResult TextDocumentImplementation    = Location |? List Location |? List LocationLink
+  ResponseResult TextDocumentDeclaration       = LocationResult
+  ResponseResult TextDocumentDefinition        = LocationResult
+  ResponseResult TextDocumentTypeDefinition    = LocationResult
+  ResponseResult TextDocumentImplementation    = LocationResult
   ResponseResult TextDocumentReferences        = List Location
   ResponseResult TextDocumentDocumentHighlight = List DocumentHighlight
-  ResponseResult TextDocumentDocumentSymbol    = List DocumentSymbol |? List SymbolInformation
+  ResponseResult TextDocumentDocumentSymbol    = SymbolResult
   -- Code Action/Lens/Link
-  ResponseResult TextDocumentCodeAction        = List (Command |? CodeAction)
+  ResponseResult TextDocumentCodeAction        = List CodeActionResult
   ResponseResult TextDocumentCodeLens          = List CodeLens
   ResponseResult CodeLensResolve               = CodeLens
   ResponseResult TextDocumentDocumentLink      = List DocumentLink

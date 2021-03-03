@@ -270,6 +270,11 @@ data CompletionList =
 
 deriveJSON lspOptions ''CompletionList
 
+data CompletionResult = CompletionResultList (List CompletionItem) | CompletionResultCompletionList CompletionList
+  deriving (Read,Show,Eq)
+
+deriveJSON lspOptionsUntagged ''CompletionArgs
+
 -- | How a completion was triggered
 data CompletionTriggerKind = -- | Completion was triggered by typing an identifier (24x7 code
                              -- complete), manual invocation (e.g Ctrl+Space) or via API.

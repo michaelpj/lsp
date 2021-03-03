@@ -209,3 +209,8 @@ data SymbolInformation =
     } deriving (Read,Show,Eq)
 
 deriveJSON lspOptions ''SymbolInformation
+
+data SymbolResult = SymbolResultSymbol (List DocumentSymbol) | SymbolResultInfo (List SymbolInformation)
+  deriving (Read,Show,Eq)
+
+deriveJSON lspOptionsUntagged ''SymbolResult
